@@ -1,5 +1,6 @@
 # Baut Slozzy fuer iOS in der Cloud und laedt den Build zu TestFlight hoch.
-# Voraussetzung in Codemagic: App-Store-Connect-API-Schluessel unter dem Namen "slozzy_key" hinterlegt.
+# Voraussetzung in Codemagic: App-Store-Connect-API-Schluessel unter dem Namen "slozzy_key" hinterlegt
+# und Umgebungsvariable CERTIFICATE_PRIVATE_KEY in der Gruppe "signing".
 workflows:
   ios-testflight:
     name: Slozzy iOS TestFlight
@@ -8,10 +9,10 @@ workflows:
     integrations:
       app_store_connect: slozzy_key
     environment:
-      ios_signing:
-        distribution_type: app_store
-        bundle_identifier: de.grzesbkh.slozzy
+      groups:
+        - signing
       vars:
+        BUNDLE_ID: "de.grzesbkh.slozzy"
         XCODE_WORKSPACE: "ios/App/App.xcworkspace"
         XCODE_SCHEME: "App"
       node: 22
@@ -38,7 +39,11 @@ workflows:
       - name: Web-Dateien ins iOS-Projekt kopieren
         script: npx cap sync ios
       - name: Signierung einrichten
-        script: xcode-project use-profiles
+        script: |
+          keychain initialize
+          app-store-connect fetch-signing-files "$BUNDLE_ID" --type IOS_APP_STORE --create
+          keychain add-certificates
+          xcode-project use-profiles
       - name: Build-Nummer setzen
         script: cd ios/App && agvtool new-version -all "$PROJECT_BUILD_NUMBER"
       - name: App bauen

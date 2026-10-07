@@ -13,5 +13,5 @@ Der Browser oeffnet sich auf http://localhost:5173.
 
 Das iOS-Projekt wird nicht auf diesem Rechner erzeugt. Codemagic baut es bei jedem Lauf frisch nach `codemagic.yaml` und laedt das Ergebnis zu TestFlight hoch.
 
-- Bundle-ID: `de.grzesiak.slozzy` (steht in `capacitor.config.json` und `codemagic.yaml`)
+- Bundle-ID: `de.grzesbkh.slozzy` (steht in `capacitor.config.json` und `codemagic.yaml`)
 - Icon und Startbildschirm: Vorlagen in `assets/`

@@ -1,0 +1,52 @@
+# Baut Slozzy fuer iOS in der Cloud und laedt den Build zu TestFlight hoch.
+# Voraussetzung in Codemagic: App-Store-Connect-API-Schluessel unter dem Namen "slozzy_key" hinterlegt.
+workflows:
+  ios-testflight:
+    name: Slozzy iOS TestFlight
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    integrations:
+      app_store_connect: slozzy_key
+    environment:
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: de.grzesiak.slozzy
+      vars:
+        XCODE_WORKSPACE: "ios/App/App.xcworkspace"
+        XCODE_SCHEME: "App"
+      node: 22
+      xcode: latest
+      cocoapods: default
+    scripts:
+      - name: Abhaengigkeiten installieren
+        script: npm install
+      - name: iOS-Projekt erzeugen
+        script: npx cap add ios
+      - name: Icon und Startbildschirm erzeugen
+        script: npx capacitor-assets generate --ios
+      - name: Hochformat, nur iPhone, keine Verschluesselung
+        script: |
+          PLIST=ios/App/App/Info.plist
+          /usr/libexec/PlistBuddy -c "Delete :UISupportedInterfaceOrientations" "$PLIST" || true
+          /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations array" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations:0 string UIInterfaceOrientationPortrait" "$PLIST"
+          /usr/libexec/PlistBuddy -c "Delete :UISupportedInterfaceOrientations~ipad" "$PLIST" || true
+          /usr/libexec/PlistBuddy -c "Add :ITSAppUsesNonExemptEncryption bool false" "$PLIST" || true
+          /usr/libexec/PlistBuddy -c "Add :UIStatusBarHidden bool true" "$PLIST" || true
+          /usr/libexec/PlistBuddy -c "Add :UIViewControllerBasedStatusBarAppearance bool false" "$PLIST" || true
+          sed -i '' 's/TARGETED_DEVICE_FAMILY = "1,2"/TARGETED_DEVICE_FAMILY = 1/g' ios/App/App.xcodeproj/project.pbxproj
+      - name: Web-Dateien ins iOS-Projekt kopieren
+        script: npx cap sync ios
+      - name: Signierung einrichten
+        script: xcode-project use-profiles
+      - name: Build-Nummer setzen
+        script: cd ios/App && agvtool new-version -all "$PROJECT_BUILD_NUMBER"
+      - name: App bauen
+        script: xcode-project build-ipa --workspace "$XCODE_WORKSPACE" --scheme "$XCODE_SCHEME"
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true

@@ -1,0 +1,10 @@
+{
+  "appId": "de.grzesiak.slozzy",
+  "appName": "Slozzy",
+  "webDir": "www",
+  "backgroundColor": "#123a2c",
+  "ios": {
+    "contentInset": "never",
+    "scrollEnabled": false
+  }
+}

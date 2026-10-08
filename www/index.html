@@ -102,6 +102,7 @@ body{background:var(--leaf-deep);color:var(--cream);font-family:var(--display);o
   background:conic-gradient(var(--sun) var(--f),rgba(255,245,217,.12) 0);
   -webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 7px),#000 calc(100% - 6px));
   mask:radial-gradient(farthest-side,transparent calc(100% - 7px),#000 calc(100% - 6px))}
+.fring.cool{background:conic-gradient(rgba(255,245,217,.3) var(--f),rgba(255,245,217,.07) 0)}
 .fring.on{background:conic-gradient(#ffd65a var(--f),rgba(255,214,90,.18) 0);animation:fblink .5s steps(2) infinite;filter:drop-shadow(0 0 8px rgba(255,214,90,.95))}
 @keyframes fblink{50%{opacity:.4}}
 @media (prefers-reduced-motion:reduce){.fring.on{animation:none}}
@@ -232,7 +233,7 @@ function start(){
   fx={slow:0,mh:0,mv:0,rot:0,fog:0,rom:0,blank:0};rotT=0;world=prevWorld=0;fade=0;fallY=0;spin=0;banner=null;
   for(var bi=1;bi<=12;bi++)btns[bi].classList.remove("ok","bad");
   nextTree=12+Math.floor(Math.random()*8);sleepM=0;shake=0;
-  harpyOut=null;deathCause=null;feverCharge=0;runMode=false;jumpT=1;upT=1;runSigns=[];runMangos=[];flipT0=null;$("game").classList.remove("crash");$("help").hidden=true;$("overlay").classList.remove("helpmode");
+  harpyOut=null;deathCause=null;feverCharge=0;feverCool=feverCoolMax=15;runMode=false;jumpT=1;upT=1;runSigns=[];runMangos=[];flipT0=null;$("game").classList.remove("crash");$("help").hidden=true;$("overlay").classList.remove("helpmode");
   dist=0;mult=1;fastRun=0;shield=0;fever=0;secondUsed=false;chase=null;nextChase=25+Math.floor(Math.random()*10);playT=0;weather=null;nextWeather=30+Math.random()*20;flashA=0;floats=[];bestMult=1;fastest=9;
   try{ac=ac||new (window.AudioContext||window.webkitAudioContext)();ac.resume();initMusic()}catch(e){}
   if(SAVE.armed.shield)shield=1+(SAVE.up.shield||0);if(SAVE.armed.slow)fx.slow=20;SAVE.armed={};persist();preview=false;$("panel").hidden=true;
@@ -325,7 +326,8 @@ function press(n,b){
     if(fastRun%5===0){flipT0=time;floatUp("Salto!","#b05ad6");tone(320,.3,"sine",.1,900)}}
   else{fastRun=0;mult=1}
   if(fever>0){if(fast)fever=Math.min(FEVER_MAX,fever+1.6)}
-  else{feverCharge=fast?Math.min(1,feverCharge+.1):Math.max(0,feverCharge-.25);
+  else if(feverCool<=0){var hardFx=fx.mh>0||fx.mv>0||fx.rot>0||fx.blank>0,chargeFast=used<Math.max((hardFx?.7:.45)*tMax,hardFx?.8:.5);
+    if(chargeFast)feverCharge=Math.min(1,feverCharge+.1);
     if(!SAVE.seenHelp.feverHint&&feverCharge>=.3){SAVE.seenHelp.feverHint=1;persist();banner={text:"Schnell tippen lädt das Fieber!",color:"#f0a52a",t:2.4,d:2.4}}
     if(feverCharge>=1){feverCharge=0;fever=FEVER_MAX;goalEv("fever",1,true);if(chase){chase=null;harpyOut=null}banner={text:"Mango-Rausch!",color:"#f0a52a",t:2.2,d:2.2};jingle();startRun()}}
   if(left<.15)floatUp("Puh!","#2fae6b");
@@ -800,18 +802,18 @@ function drawBanner(){
 }
 
 /* ---------- Mango-Rausch: Fieber am Boden ---------- */
-var runMode=false,jumpT=1,upT=1,runSigns=[],runMangos=[],nextSignX=0,nextMangoX=0,feverUsed=0,lastSignN=0,FEVER_CAP=20;
+var feverCool=0,feverCoolMax=20,FEVER_COOL=25,runMode=false,jumpT=1,upT=1,runSigns=[],runMangos=[],nextSignX=0,nextMangoX=0,feverUsed=0,lastSignN=0,FEVER_CAP=20;
 function runSpeed(){return 230*u}
 function startRun(){runMode=true;jumpT=0;feverUsed=0;runSigns=[];runMangos=[];nextSignX=camX+W*.6;nextMangoX=camX+W*.3;flipT0=null;
   if(!SAVE.seenHelp.runHint){SAVE.seenHelp.runHint=1;persist();setTimeout(function(){if(runMode)banner={text:"Tippe die Zahlen am Boden!",color:"#f0a52a",t:2.6,d:2.6}},1700)}}
-function endRun(){runMode=false;feverCharge=0;pos=Math.round(camX/S)+1;nextItem=Math.max(nextItem,pos+3);nextTree=Math.max(nextTree,pos+8);swingFrom=pos;swingP=1;upT=0;vel=0;theta=0;
+function endRun(){runMode=false;feverCharge=0;feverCool=feverCoolMax=FEVER_COOL;pos=Math.round(camX/S)+1;nextItem=Math.max(nextItem,pos+3);nextTree=Math.max(nextTree,pos+8);swingFrom=pos;swingP=1;upT=0;vel=0;theta=0;
   tMax=tLeft=windowFor()+1;banner={text:"Zurück an die Liane!",color:"#2fae6b",t:1.6,d:1.6};tone(300,.3,"sine",.12,700)}
-function runTarget(){for(var i=0;i<runSigns.length;i++){var g=runSigns[i];if(g.st===0&&g.x>camX-4*u)return g}return null}
+function runTarget(){for(var i=0;i<runSigns.length;i++){var g=runSigns[i];if(g.st===0&&g.x>camX-4*u&&W*.3+(g.x-camX)<W-14*u)return g}return null}
 function updateRun(dt){
   if(jumpT<.45){jumpT+=dt;return}
   var sp=runSpeed(),i,k,n;camX+=sp*dt;feverUsed+=dt;
   while(nextMangoX<camX+W){for(k=0;k<3;k++)runMangos.push({x:nextMangoX+k*22*u,got:false});nextMangoX+=sp*2}
-  while(nextSignX<camX+W){do{n=1+Math.floor(Math.random()*12)}while(n===lastSignN);lastSignN=n;runSigns.push({x:nextSignX,n:n,st:0});nextSignX+=sp*1.05}
+  while(nextSignX<camX+W){do{n=1+Math.floor(Math.random()*12)}while(n===lastSignN);lastSignN=n;runSigns.push({x:nextSignX,n:n,st:0});nextSignX+=sp*.85}
   for(i=0;i<runMangos.length;i++){var m=runMangos[i];if(!m.got&&m.x<=camX+8*u){m.got=true;mango++;goalEv("mango",1,true);hud();
     if(ac)marimba(84+(i%3)*4,ac.currentTime,.1,ac.destination)}}
   for(i=0;i<runSigns.length;i++)if(runSigns[i].st===0&&runSigns[i].x<camX-4*u)runSigns[i].st=2;
@@ -822,18 +824,18 @@ function feverPress(n,b){
   var g=runTarget();if(!g)return;
   if(n===g.n){g.st=1;flash(b,"hit");var room=FEVER_CAP-feverUsed-fever;if(room>0){fever+=Math.min(1,room);floatUp("+1 s","#f0a52a")}
     if(ac)marimba(79,ac.currentTime,.18,ac.destination);vib(10)}
-  else{g.st=2;flash(b,"miss");tone(180,.15,"triangle",.1,120)}
+  else{flash(b,"miss");tone(180,.15,"triangle",.1,120)}
 }
 function drawRunWorld(){
   var gy=H*.86,i,x;
   ctx.fillStyle="#c49a62";ctx.fillRect(0,gy,W,H-gy);ctx.fillStyle="#a37a48";ctx.fillRect(0,gy,W,4*u);
   ctx.fillStyle="rgba(120,85,45,.35)";for(i=0;i<12;i++){x=((i*61-camX)%(W+40)+W+40)%(W+40)-20;ctx.fillRect(x,gy+10*u+(i%3)*8*u,14*u,3*u)}
-  for(i=0;i<runMangos.length;i++){var m=runMangos[i];if(m.got)continue;x=W/2+(m.x-camX);if(x<-20||x>W+20)continue;
+  for(i=0;i<runMangos.length;i++){var m=runMangos[i];if(m.got)continue;x=W*.3+(m.x-camX);if(x<-20||x>W+20)continue;
     ctx.fillStyle="#ff8a1f";ctx.beginPath();ctx.ellipse(x,gy-8*u,7*u,9*u,.4,0,7);ctx.fill();
     ctx.fillStyle="#ffd24a";ctx.beginPath();ctx.ellipse(x-2*u,gy-10*u,2.5*u,4*u,.4,0,7);ctx.fill();
     ctx.fillStyle="#2f8f5f";ctx.beginPath();ctx.ellipse(x+4*u,gy-17*u,4.5*u,2.2*u,-.5,0,7);ctx.fill()}
   var tg=runTarget();
-  for(i=0;i<runSigns.length;i++){var g=runSigns[i];x=W/2+(g.x-camX);if(x<-30||x>W+30)continue;
+  for(i=0;i<runSigns.length;i++){var g=runSigns[i];x=W*.3+(g.x-camX);if(x<-30||x>W+30)continue;
     var y=gy-74*u,r=20*u;
     ctx.strokeStyle="#7a5530";ctx.lineWidth=4*u;ctx.beginPath();ctx.moveTo(x,gy);ctx.lineTo(x,y+r);ctx.stroke();
     ctx.globalAlpha=g.st===2?.4:1;
@@ -843,8 +845,8 @@ function drawRunWorld(){
     ctx.fillText(g.st===1?"✓":g.n,x,y+r*.08);ctx.globalAlpha=1}
 }
 function drawRunner(){
-  var gy=H*.86,x=W/2,t=time*13,y=gy-34*u-Math.abs(Math.sin(t))*5*u,fur="#8a6a4a",dark="#5c4532",e;
-  if(jumpT<.45){e=jumpT/.45;var hy=nodeY(pos)+46*u;y=hy+(y-hy)*e-Math.sin(Math.PI*e)*40*u}
+  var gy=H*.86,x=W*.3,t=time*13,y=gy-34*u-Math.abs(Math.sin(t))*5*u,fur="#8a6a4a",dark="#5c4532",e;
+  if(jumpT<.45){e=jumpT/.45;x=W/2+(W*.3-W/2)*e;var hy=nodeY(pos)+46*u;y=hy+(y-hy)*e-Math.sin(Math.PI*e)*40*u}
   var fg2=ctx.createRadialGradient(x,y,8*u,x,y,(62+Math.sin(time*9)*6)*u);fg2.addColorStop(0,"rgba(255,214,90,.6)");fg2.addColorStop(1,"rgba(255,214,90,0)");
   ctx.fillStyle=fg2;ctx.beginPath();ctx.arc(x,y,70*u,0,7);ctx.fill();
   ctx.fillStyle=dark;var l1=Math.sin(t)*9*u;
@@ -905,7 +907,7 @@ function frame(ts){
     if(!(tut&&dist<3)&&!runMode)tLeft-=dt;
     if(!runMode)for(var k in fx)if(fx[k]>0)fx[k]=Math.max(0,fx[k]-dt);
     if(fx.rot>0&&!runMode)rotT+=dt;
-    if(runMode)updateRun(dt);
+    if(runMode)updateRun(dt);else if(feverCool>0)feverCool=Math.max(0,feverCool-dt);
     playT+=dt;
     if(fever>0){if(!(runMode&&jumpT<.45))fever-=dt;if(fever<=0){fever=0;feverCharge=0;if(runMode)endRun()}}
     if(chase){chase.t+=dt;chase.gap-=dt*.05;if(chase.gap<=0){chase.gap=0;over("Die Harpyie hat Slozzy erwischt.",0,true,"harpy")}else if(chase.t>20)endChase(false)}
@@ -939,7 +941,7 @@ function frame(ts){
       ctx.fillText("Z",W/2-(30+zp*34)*u,H*.44+(30-zp*60)*u)}ctx.globalAlpha=1}
   if(!runMode)drawFg();drawWeather(dt);drawChaseBar();}
   drawFloats(dt);drawBanner();layoutDial(dt);
-  var fr=$("fring");fr.style.setProperty("--f",Math.round((fever>0?fever/FEVER_MAX:feverCharge)*100)+"%");if(fr.classList.contains("on")!==(fever>0))fr.classList.toggle("on",fever>0);
+  var fr=$("fring");var cooling=fever<=0&&feverCool>0;fr.style.setProperty("--f",Math.round(Math.min(1,fever>0?fever/FEVER_MAX:cooling?1-feverCool/feverCoolMax:feverCharge)*100)+"%");if(fr.classList.contains("on")!==(fever>0))fr.classList.toggle("on",fever>0);if(fr.classList.contains("cool")!==cooling)fr.classList.toggle("cool",cooling);
   dial.style.boxShadow="inset 0 0 0 6px "+((chase||fx.mh>0||fx.mv>0||fx.rot>0)?"#e8503a":fx.slow>0?"#3fbf8f":"#2f8f5f");
   requestAnimationFrame(frame);
 }

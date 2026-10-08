@@ -78,6 +78,10 @@ body{background:var(--leaf-deep);color:var(--cream);font-family:var(--display);o
 .scene .help canvas{position:static;inset:auto;display:block;width:160px;height:100px;flex:none;max-width:100%;border-radius:16px}
 .help h2{margin:2px 0 0;font-size:24px;font-weight:800;color:var(--sun)}
 .help p{font-size:14px;line-height:1.3}
+.hrow{align-items:flex-start}
+.hrow canvas{width:96px;height:60px;border-radius:10px;flex:none}
+.hrow b{display:block;font-size:15px}
+.hrow small{font-size:13px;line-height:1.3}
 .reset{position:absolute;top:10px;left:12px;font:600 12px var(--display);color:var(--cream);opacity:.75;background:none;border:0;text-decoration:underline;cursor:pointer;padding:4px}
 .menu{display:flex;gap:8px;margin-top:6px}
 .menu button{font:700 15px var(--display);border:0;border-radius:999px;padding:6px 16px;background:var(--cream);color:var(--ink);cursor:pointer}
@@ -119,7 +123,7 @@ body{background:var(--leaf-deep);color:var(--cream);font-family:var(--display);o
     <canvas id="cv"></canvas>
     <div class="hud">
       <div class="score"><span id="score">0</span> <span class="mult" id="mult" hidden>x1</span></div>
-      <div class="meta"><span id="world">Wald</span><small>Rekord <span id="best">0</span></small><small>Mangos <span id="mango">0</span></small></div>
+      <div class="meta"><span id="world">Wald</span><small>Rekord <span id="best">0</span></small><small>Lianen <span id="lianen">0</span></small><small>Mangos <span id="mango">0</span></small></div>
     </div>
     <button class="snd" id="snd" type="button" aria-label="Musik an oder aus">♪</button>
     <div class="overlay start" id="overlay">
@@ -130,7 +134,7 @@ body{background:var(--leaf-deep);color:var(--cream);font-family:var(--display);o
       <div class="help" id="help" hidden><canvas id="helpCv" width="480" height="300"></canvas><h2 id="helpT"></h2><p id="helpP"></p><button class="go" id="helpOk" type="button">Verstanden</button></div>
       <button class="reset" id="bReset" type="button">Fortschritt löschen (Test)</button>
       <button class="go" id="go" type="button">Los</button>
-      <div class="menu"><button id="bShop" type="button">Shop</button><button id="bGoals" type="button">Tagesziele</button></div>
+      <div class="menu"><button id="bShop" type="button">Shop</button><button id="bGoals" type="button">Tagesziele</button><button id="bHelp" type="button">Hilfe</button></div>
     </div>
   </div>
   <div class="pad" id="pad">
@@ -185,7 +189,7 @@ function vib(ms){try{
   else if(navigator.vibrate)navigator.vibrate(ms)}catch(e){}}
 function floatUp(text,color){floats.push({text:text,color:color,t:1.1})}
 function hud(){
-  $("score").textContent=score;$("mango").textContent=mango;
+  $("score").textContent=score;$("mango").textContent=mango;$("lianen").textContent=dist;
   $("mult").textContent="x"+mult;$("mult").hidden=mult<2;
 }
 var world=0,prevWorld=0,fade=0,best=0;
@@ -233,7 +237,7 @@ function start(){
   fx={slow:0,mh:0,mv:0,rot:0,fog:0,rom:0,blank:0};rotT=0;world=prevWorld=0;fade=0;fallY=0;spin=0;banner=null;
   for(var bi=1;bi<=12;bi++)btns[bi].classList.remove("ok","bad");
   nextTree=12+Math.floor(Math.random()*8);sleepM=0;shake=0;
-  harpyOut=null;deathCause=null;feverCharge=0;feverCool=feverCoolMax=15;runMode=false;jumpT=1;upT=1;runSigns=[];runMangos=[];flipT0=null;$("game").classList.remove("crash");$("help").hidden=true;$("overlay").classList.remove("helpmode");
+  harpyOut=null;deathCause=null;feverCharge=0;feverCool=feverCoolMax=15;runMode=false;jumpT=1;upT=1;runSigns=[];runMangos=[];runPhase="run";runAnchor=.3;graceT=0;nightDone=false;flipT0=null;$("game").classList.remove("crash");$("help").hidden=true;$("overlay").classList.remove("helpmode");
   dist=0;mult=1;fastRun=0;shield=0;fever=0;secondUsed=false;chase=null;nextChase=25+Math.floor(Math.random()*10);playT=0;weather=null;nextWeather=30+Math.random()*20;flashA=0;floats=[];bestMult=1;fastest=9;
   try{ac=ac||new (window.AudioContext||window.webkitAudioContext)();ac.resume();initMusic()}catch(e){}
   if(SAVE.armed.shield)shield=1+(SAVE.up.shield||0);if(SAVE.armed.slow)fx.slow=20;SAVE.armed={};persist();preview=false;$("panel").hidden=true;
@@ -249,7 +253,7 @@ function over(msg,wrongN,noMark,cause){
   if(state!=="play")return;
   if(tut&&dist<3)return;
   if(fever>0){fever=0;saved("Fieber hat dich gerettet!","#f0a52a");return}
-  if(shield){shield--;saved("Schild gerettet!","#2f8fd6");return}
+  if(shield){shield--;if(cause==="harpy")goalEv("shieldHarpy",1,true);saved("Schild gerettet!","#2f8fd6");return}
   if(SAVE.up.second&&!secondUsed){secondUsed=true;saved("Zweite Chance!","#b05ad6");return}
   deathCause=cause||["rot","mh","mv","blank","fog"].filter(function(k){return fx[k]>0})[0]||null;
   tone(420,.8,"triangle",.2,70);vib(250);
@@ -265,11 +269,17 @@ function showOver(){
   $("ovBig").hidden=false;$("ovBig").textContent=score+" Punkte · Rekord "+best;
   $("overlay").classList.remove("start");
   $("ovText").textContent=msg;persist();menuLabel();
-  $("ovStats").hidden=false;$("ovStats").textContent="Distanz "+dist+" · Beste Serie x"+bestMult+(fastest<9?" · Schnellste Reaktion "+fastest.toFixed(2).replace(".",",")+" s":"")+" · Welt "+WORLDS[world].name;$("go").textContent="Nochmal";
+  $("ovStats").hidden=false;$("ovStats").textContent="Lianen "+dist+" · Beste Serie x"+bestMult+(fastest<9?" · Schnellste Reaktion "+fastest.toFixed(2).replace(".",",")+" s":"")+" · Welt "+WORLDS[world].name;$("go").textContent="Nochmal";
   $("overlay").hidden=false;
   if(deathCause&&HELP[deathCause]&&!SAVE.seenHelp[deathCause])showHelp(deathCause);
 }
 var HELP={
+  basic:["So spielst du","Vor Slozzy hängt eine Zahl an der Liane. Tippe sie auf der Uhr, bevor der Ring um die Zahl abläuft. Daneben getippt oder zu langsam heißt Absturz."],
+  fever:["Mango-Rausch","Schnelle Treffer laden den Ring um die Uhr. Ist er voll, springt Slozzy auf den Boden und sammelt Mangos. Triff die Zahlen auf den Schildern, um den Rausch zu verlängern (8 bis 20 Sekunden). Danach braucht der Ring eine Pause."],
+  slow:["Zeitlupe","10 Sekunden lang hast du deutlich mehr Zeit pro Zahl. Unter „Items“ kannst du sie verlängern."],
+  shield:["Schild","Verzeiht einen Fehler oder einen Biss der Harpyie. Solange es aktiv ist, trägt Slozzy eine blaue Blase."],
+  mango:["Mangos","Mangos hängen an manchen Lianen und liegen im Mango-Rausch am Boden. Unter „Items“ tauschst du sie gegen Verbesserungen und Start-Vorteile."],
+  level:["Level","Du hast immer drei Ziele. Schaffst du alle, steigst du ein Level auf, bekommst Mangos und schaltest neue Outfits frei."],
   harpy:["Die Harpyie","Der Balken unten zeigt deinen Vorsprung. Jeder schnelle Treffer bringt dich weiter weg, langsame lassen sie aufholen. Halte das Tempo hoch, bis der Balken voll ist. Nach 20 Sekunden gibt sie von selbst auf."],
   sleep:["Der Schlafbaum","An Bäumen mit dem Schild „Schlafbaum“ schläft Slozzy ein. Tippe ganz schnell immer wieder auf „Aufwecken!“ in der Mitte der Uhr, bevor die 4 Sekunden ablaufen."],
   mh:["Spiegel ↔","Links und rechts sind vertauscht: Die 3 liegt jetzt links, die 9 rechts. Lies die Ziffern, statt dich auf die gewohnte Position zu verlassen."],
@@ -278,11 +288,15 @@ var HELP={
   fog:["Nebel","Die nächsten Zahlen sind verdeckt, du siehst nur die aktuelle. Vorausplanen geht nicht, also reagiere Zahl für Zahl."],
   blank:["Lücken","Vier Ziffern auf der Uhr sind ausgeblendet, die Tasten funktionieren trotzdem. Die fehlende Zahl liegt dort, wo sie auf jeder Uhr liegt."]
 };
-function drawHelp(t){
-  var c=$("helpCv").getContext("2d"),w=480,h=300,i,n,a;
-  c.clearRect(0,0,w,h);
+function drawHelp(t,cv){
+  cv=cv||$("helpCv");var c=cv.getContext("2d"),w=480,h=300,i,n,a;
+  c.setTransform(cv.width/480,0,0,cv.height/300,0,0);c.clearRect(0,0,w,h);
   var g=c.createLinearGradient(0,0,0,h);g.addColorStop(0,"#9fd6c2");g.addColorStop(1,"#f3efc4");c.fillStyle=g;c.fillRect(0,0,w,h);
   c.textAlign="center";c.textBaseline="middle";
+  if(t==="mango"){for(i=0;i<3;i++){var mx=150+i*90,my=160+(i%2)*20;c.fillStyle="#ff8a1f";c.beginPath();c.ellipse(mx,my,34,44,.4,0,7);c.fill();
+      c.fillStyle="#ffd24a";c.beginPath();c.ellipse(mx-10,my-10,11,18,.4,0,7);c.fill();c.fillStyle="#2f8f5f";c.beginPath();c.ellipse(mx+20,my-44,20,9,-.5,0,7);c.fill()}return}
+  if(t==="level"){c.fillStyle="#b05ad6";c.beginPath();c.arc(240,150,90,0,7);c.fill();c.fillStyle="#fff";c.font="800 90px 'Baloo 2',sans-serif";c.fillText("3",240,158);
+    for(i=0;i<3;i++){c.fillStyle="#ffd24a";c.beginPath();for(n=0;n<10;n++){a=-Math.PI/2+n*Math.PI/5;var rr=n%2?12:28;c.lineTo(110+i*130+Math.cos(a)*rr,50+(i===1?-12:0)+Math.sin(a)*rr)}c.closePath();c.fill()}return}
   if(t==="harpy"){c.fillStyle="#4f9f7c";c.beginPath();c.ellipse(240,330,320,90,0,0,7);c.fill();harpyShape(c,250,140,4,.45);return}
   if(t==="sleep"){c.fillStyle="#6b4a2f";c.fillRect(200,0,80,h);
     c.strokeStyle="#8a6a4a";c.lineWidth=26;c.lineCap="round";c.beginPath();c.moveTo(212,140);c.lineTo(222,30);c.moveTo(268,140);c.lineTo(258,30);c.stroke();
@@ -298,7 +312,7 @@ function drawHelp(t){
     var hid={2:1,5:1,9:1,11:1};
     for(n=1;n<=12;n++){a=n*30;if(t==="mh")a=-a;if(t==="mv")a=180-a;if(t==="rot")a+=45;a=a*Math.PI/180;
       var x=240+Math.sin(a)*105,y=150-Math.cos(a)*105;
-      c.fillStyle="#fff5d9";c.beginPath();c.arc(x,y,24,0,7);c.fill();
+      c.fillStyle=t==="fever"?"#ffd65a":"#fff5d9";c.beginPath();c.arc(x,y,24,0,7);c.fill();
       if(!(t==="blank"&&hid[n])){c.fillStyle="#1c2a22";c.font="800 26px 'Baloo 2',sans-serif";c.fillText(n,x,y+2)}}}
   var it=ITEMS[t];if(it){c.fillStyle="#fff";c.beginPath();c.arc(428,52,38,0,7);c.fill();c.fillStyle=it.color;c.beginPath();c.arc(428,52,33,0,7);c.fill();
     c.fillStyle="#fff";c.font="800 36px 'Baloo 2','Segoe UI Symbol',sans-serif";c.fillText(it.sym,428,55)}
@@ -316,14 +330,15 @@ $("bReset").addEventListener("click",function(){
 function press(n,b){
   if(state!=="play")return;
   if(runMode){feverPress(n,b);return}
+  if(graceT>0)return;
   var t=getNode(pos+1);
   if(n!==t.n){flash(b,"miss");over("Du hast die "+n+" gedrückt, gesucht war die "+t.n+".",n);return}
   flash(b,"hit");
   var used=tMax-tLeft,left=tLeft/tMax,fast=used<Math.max(.45*tMax,.5);
-  pos++;dist++;vel-=4.2;swingFrom=pos-1;swingP=0;
+  pos++;dist++;SAVE.lianen=(SAVE.lianen||0)+1;goalEv("lianen",1,true);if(fx.mh>0||fx.mv>0)goalEv("mirrorHits",1,true);if(fx.rot>0)goalEv("rotHits",1,true);vel-=4.2;swingFrom=pos-1;swingP=0;
   if(!(tut&&dist<=3)&&used<fastest)fastest=used;
   if(fast){fastRun++;if(fastRun%3===0&&mult<5){mult++;floatUp("Blitzschnell! x"+mult,"#f0a52a")}
-    if(fastRun%5===0){flipT0=time;floatUp("Salto!","#b05ad6");tone(320,.3,"sine",.1,900)}}
+    if(fastRun%5===0){flipT0=time;goalEv("salto",1,true);floatUp("Salto!","#b05ad6");tone(320,.3,"sine",.1,900)}}
   else{fastRun=0;mult=1}
   if(fever>0){if(fast)fever=Math.min(FEVER_MAX,fever+1.6)}
   else if(feverCool<=0){var hardFx=fx.mh>0||fx.mv>0||fx.rot>0||fx.blank>0,chargeFast=used<Math.max((hardFx?.7:.45)*tMax,hardFx?.8:.5);
@@ -352,6 +367,7 @@ function press(n,b){
     if(chase.gap>=1){endChase(true);mango+=5;goalEv("escape",1,true);banner={text:"Abgehängt! +5 Mangos",color:"#2fae6b",t:2,d:2};jingle()}}
   else if(dist>=nextChase&&!t.tree&&!tut&&!runMode){chase={gap:.5,t:0};banner={text:"Harpyie! Schnell weg!",color:"#e8503a",t:2.2,d:2.2};tone(1500,.5,"sawtooth",.07,750)}
   hud();
+  goalEv("world",Math.floor(camX/(WORLD_LEN*S)+.5));
   var w=Math.floor(camX/(WORLD_LEN*S)+.5)%WORLDS.length;
   if(w!==world){prevWorld=world;world=w;fade=1;$("world").textContent=WORLDS[w].name}
   tMax=tLeft=windowFor();
@@ -360,7 +376,7 @@ function press(n,b){
 function wakeTap(e){
   if(e)e.preventDefault();if(state!=="sleep")return;
   sleepM+=.13;shake=1;vib(15);if(ac)marimba(60+Math.round(sleepM*12),ac.currentTime,.18,ac.destination);
-  if(sleepM>=1){goalEv("wake",1,true);hud();state="play";tMax=tLeft=windowFor();banner={text:"Wach! Weiter!",color:"#2fae6b",t:1.6};
+  if(sleepM>=1){goalEv("wake",1,true);if(4-sleepT<2)goalEv("fastWake",1,true);hud();state="play";tMax=tLeft=windowFor();banner={text:"Wach! Weiter!",color:"#2fae6b",t:1.6};
     if(ac)for(var q=0;q<4;q++)marimba([72,76,79,84][q],ac.currentTime+q*.06,.22,ac.destination)}
 }
 $("wake").addEventListener("pointerdown",wakeTap);
@@ -425,19 +441,28 @@ var HATS=[["none","Ohne Outfit",1],["straw","Strohhut",2],["shades","Sonnenbrill
 HATS.forEach(function(h){if(h[0]===SAVE.hat&&h[2]>SAVE.level)SAVE.hat="none"});
 var BOOSTS=[["shield","Schild zum Start","Ein Fehler frei",20],["slow","Zeitlupe zum Start","20 Sekunden mehr Zeit",12]];
 var UPS=[["slow","Längere Zeitlupe","+3 Sekunden pro Stufe",[30,60,100]],["shield","Doppelschild","Ein Schild verzeiht zwei Fehler",[80]],["second","Zweite Chance","Einmal pro Lauf fängt sich Slozzy selbst",[150]]];
-var GT=["dist","score","wake","mango","items","escape","mult","rescue","fever"];
+var GT_EASY=["dist","lianen","mango","score","mult","salto","items","wake","rescue"];
+var GT_ALL=GT_EASY.concat(["escape","fever","signs","shieldHarpy","night","world","mirrorHits","rotHits","fastWake","rauschMangos"]);
 function goalFor(type,L){
-  var t={dist:20+L*6,score:60+L*40,wake:1+Math.floor(L/3),mango:6+L*2,items:4+L,escape:1+Math.floor(L/4),mult:Math.min(5,2+Math.floor(L/3)),rescue:2+Math.floor(L/2),fever:1+Math.floor(L/3)}[type];
+  var t={dist:20+L*6,lianen:60+L*30,score:60+L*40,wake:1+Math.floor(L/3),mango:6+L*2,items:4+L,escape:1+Math.floor(L/4),
+    mult:Math.min(5,2+Math.floor(L/3)),rescue:2+Math.floor(L/2),fever:1+Math.floor(L/4),salto:2+L,signs:4+L*2,shieldHarpy:1,
+    night:1+Math.floor(L/6),world:L<8?2:3,mirrorHits:5+L*2,rotHits:5+L*2,fastWake:1+Math.floor(L/5),rauschMangos:8+L}[type];
   return {type:type,target:t,prog:0,done:false};
 }
 function ensureGoals(){
   if(SAVE.goals&&SAVE.goals.level===SAVE.level&&SAVE.goals.list)return;
-  var list=[];for(var i=0;i<3;i++)list.push(goalFor(GT[((SAVE.level-1)+i*3)%9],SAVE.level));
-  SAVE.goals={level:SAVE.level,list:list};persist();
+  var L=SAVE.level,pool=L<=3?GT_EASY:GT_ALL,seed=(L*7919)%233280,list=[],used={},tries=0;
+  while(list.length<3&&tries<200){seed=(seed*9301+49297)%233280;var ty=pool[Math.floor(seed/233280*pool.length)];tries++;
+    if(!used[ty]){used[ty]=1;list.push(goalFor(ty,L))}}
+  SAVE.goals={level:L,list:list};persist();
 }
-function goalText(g){return {dist:"Hangle dich "+g.target+" Zahlen weit",score:"Hole "+g.target+" Punkte in einem Lauf",mango:"Sammle "+g.target+" Mangos",
-  items:"Sammle "+g.target+" Items",mult:"Erreiche den Multiplikator x"+g.target,wake:"Wecke Slozzy "+g.target+" Mal",
-  escape:"Hänge die Harpyie "+g.target+" Mal ab",rescue:"Rette "+g.target+" Faultier-Babys",fever:"Löse "+g.target+" Mal das Fieber aus"}[g.type]}
+function goalText(g){var t=g.target;return {dist:"Schaffe "+t+" Lianen in einem Lauf",lianen:"Schwinge insgesamt an "+t+" Lianen",score:"Hole "+t+" Punkte in einem Lauf",
+  mango:"Sammle "+t+" Mangos",items:"Sammle "+t+" Items",mult:"Erreiche den Multiplikator x"+t,wake:"Wecke Slozzy "+t+" Mal",
+  escape:"Hänge die Harpyie "+t+" Mal ab",rescue:"Rette "+t+" Faultier-Babys",fever:"Löse "+t+" Mal den Mango-Rausch aus",
+  salto:"Mach "+t+" Saltos",signs:"Triff "+t+" Zahlen im Mango-Rausch",shieldHarpy:"Lass dich mit Schild von der Harpyie erwischen",
+  night:"Halte bis zur Nacht durch"+(t>1?" ("+t+" Mal)":""),world:t===2?"Erreiche den Vulkan":"Erreiche den Strand",
+  mirrorHits:"Triff "+t+" Zahlen bei gespiegelter Uhr",rotHits:"Triff "+t+" Zahlen bei drehender Uhr",
+  fastWake:"Wecke Slozzy "+(t>1?t+" Mal ":"")+"in unter 2 Sekunden",rauschMangos:"Sammle "+t+" Mangos in einem Mango-Rausch"}[g.type]||g.type}
 function jingle(){if(ac)for(var q=0;q<4;q++)marimba([72,76,79,84][q],ac.currentTime+q*.07,.22,ac.destination)}
 function levelUp(){
   var rw=10+SAVE.level*5,un="";SAVE.level++;mango+=rw;SAVE.goals=null;ensureGoals();
@@ -455,10 +480,18 @@ function goalEv(type,val,add){
   });
   if(all)levelUp();
 }
-function menuLabel(){ensureGoals();$("bShop").textContent="Werkstatt";
+function menuLabel(){ensureGoals();$("bShop").textContent="Items";
   $("bGoals").textContent="Level "+SAVE.level+" · "+SAVE.goals.list.filter(function(g){return g.done}).length+"/3"}
+var HELP_ORDER=["basic","fever","harpy","sleep","slow","shield","mh","mv","rot","fog","blank","mango","level"];
 function renderPanel(){
   var h="",i;$("pMango").textContent=mango+" Mangos";
+  if(panelKind==="help"){
+    $("pTitle").textContent="Hilfe";
+    HELP_ORDER.forEach(function(k){h+='<div class="row hrow"><canvas width="240" height="150" data-help="'+k+'"></canvas><div><b>'+HELP[k][0]+"</b><small>"+HELP[k][1]+"</small></div></div>"});
+    $("pList").innerHTML=h;$("pList").scrollTop=0;
+    Array.prototype.forEach.call($("pList").querySelectorAll("canvas[data-help]"),function(c){drawHelp(c.getAttribute("data-help"),c)});
+    return;
+  }
   if(panelKind==="goals"){
     $("pTitle").textContent="Level "+SAVE.level;ensureGoals();
     h+='<p class="sub">Alle drei Ziele schaffen, dann steigst du auf</p>';
@@ -468,9 +501,9 @@ function renderPanel(){
     h+='<p class="sub">Outfits</p>';
     for(i=0;i<HATS.length;i++){var t=HATS[i],own=SAVE.level>=t[2],on=SAVE.hat===t[0];
       h+='<div class="row"><div>'+t[1]+"<small>"+(own?"Freigeschaltet":"Ab Level "+t[2])+'</small></div><button type="button" id="act-'+t[0]+'" data-act="hat:'+t[0]+'"'+(on?' class="on" disabled':(!own?" disabled":""))+">"+(on?"Angezogen":own?"Tragen":"Gesperrt")+"</button></div>"}
-    h+='<p class="sub">Gerettete Faultier-Babys: '+SAVE.rescued+"</p>";
+    h+='<p class="sub">Lianen insgesamt: '+(SAVE.lianen||0)+" · Gerettete Babys: "+SAVE.rescued+"</p>";
   }else{
-    $("pTitle").textContent="Werkstatt";h+='<p class="sub">Dauerhafte Verbesserungen</p>';
+    $("pTitle").textContent="Items";h+='<p class="sub">Dauerhafte Verbesserungen</p>';
     for(i=0;i<UPS.length;i++){var up=UPS[i],lv=SAVE.up[up[0]]||0,mx=up[3].length,full=lv>=mx;
       h+='<div class="row"><div>'+up[1]+"<small>"+up[2]+" · Stufe "+lv+"/"+mx+'</small></div><button type="button" id="act-up-'+up[0]+'" data-act="up:'+up[0]+'"'+(full?' class="on" disabled':(mango<up[3][lv]?" disabled":""))+">"+(full?"Maximal":up[3][lv]+" Mangos")+"</button></div>"}
     h+='<p class="sub">Start-Vorteile für den nächsten Lauf</p>';
@@ -483,6 +516,7 @@ function openPanel(kind){if(state==="play"||state==="sleep"||state==="fall")retu
 function closePanel(){preview=false;$("panel").hidden=true;if(state!=="play")$("overlay").hidden=false;menuLabel()}
 $("bShop").addEventListener("click",function(){openPanel("shop")});
 $("bGoals").addEventListener("click",function(){openPanel("goals")});
+$("bHelp").addEventListener("click",function(){openPanel("help")});
 $("pClose").addEventListener("click",closePanel);
 $("pList").addEventListener("click",function(e){
   var b=e.target.closest("button[data-act]");if(!b||b.disabled)return;
@@ -524,7 +558,7 @@ function layoutDial(dt){
   var html=shield?'<span class="chip good">Schild aktiv</span>':"";
   if(chase)html+='<span class="chip bad">Harpyie!</span>';
   if(dial.classList.contains("gold")!==runMode)dial.classList.toggle("gold",runMode);
-  if(runMode)html+='<span class="chip good">Mango-Rausch '+Math.ceil(fever)+" s</span>";
+  if(runMode&&fever>0)html+='<span class="chip good">Mango-Rausch '+Math.ceil(fever)+" s</span>";
   if(!runMode)for(var key in ITEMS){if(fx[key]>0){var it=ITEMS[key];
     html+='<span class="chip '+(it.good?"good":"bad")+'">'+it.label+" "+Math.ceil(fx[key])+" s</span>"}}
   var top=state==="ready"?'<span class="hint">Uhr = Steuerung</span>':'<div class="cscore">'+score+(mult>1?'<span class="cmult'+(fever>0?" fever":"")+'">x'+mult+"</span>":"")+"</div>";
@@ -804,17 +838,28 @@ function drawBanner(){
 /* ---------- Mango-Rausch: Fieber am Boden ---------- */
 var feverCool=0,feverCoolMax=20,FEVER_COOL=25,runMode=false,jumpT=1,upT=1,runSigns=[],runMangos=[],nextSignX=0,nextMangoX=0,feverUsed=0,lastSignN=0,FEVER_CAP=20;
 function runSpeed(){return 230*u}
-function startRun(){runMode=true;jumpT=0;feverUsed=0;runSigns=[];runMangos=[];nextSignX=camX+W*.6;nextMangoX=camX+W*.3;flipT0=null;
+var runPhase="run",runAnchor=.3,exitPos=0,treeX=0,climbT=0,graceT=0,runMangoCount=0,nightDone=false;
+function startRun(){runMode=true;runPhase="run";runAnchor=.3;jumpT=0;feverUsed=0;runSigns=[];runMangos=[];runMangoCount=0;nextSignX=camX+W*.6;nextMangoX=camX+W*.3;flipT0=null;
   if(!SAVE.seenHelp.runHint){SAVE.seenHelp.runHint=1;persist();setTimeout(function(){if(runMode)banner={text:"Tippe die Zahlen am Boden!",color:"#f0a52a",t:2.6,d:2.6}},1700)}}
-function endRun(){runMode=false;feverCharge=0;feverCool=feverCoolMax=FEVER_COOL;pos=Math.round(camX/S)+1;nextItem=Math.max(nextItem,pos+3);nextTree=Math.max(nextTree,pos+8);swingFrom=pos;swingP=1;upT=0;vel=0;theta=0;
-  tMax=tLeft=windowFor()+1;banner={text:"Zurück an die Liane!",color:"#2fae6b",t:1.6,d:1.6};tone(300,.3,"sine",.12,700)}
-function runTarget(){for(var i=0;i<runSigns.length;i++){var g=runSigns[i];if(g.st===0&&g.x>camX-4*u&&W*.3+(g.x-camX)<W-14*u)return g}return null}
+function beginExit(){if(runPhase!=="run")return;runPhase="toTree";exitPos=Math.ceil((camX+W*.45)/S);treeX=exitPos*S;climbT=0;
+  banner={text:"Ab zum Baum!",color:"#2fae6b",t:1.4,d:1.4}}
+function endRun(){runMode=false;runPhase="run";runAnchor=.3;feverCharge=0;feverCool=feverCoolMax=FEVER_COOL;
+  pos=exitPos;nodes[pos]={n:0,item:null,tree:true,y:0};camX=treeX;swingFrom=pos;swingP=1;upT=1;vel=0;theta=0;
+  nextItem=Math.max(nextItem,pos+3);nextTree=Math.max(nextTree,pos+10);graceT=.9;
+  tMax=tLeft=windowFor()+1;banner={text:"Weiter geht's!",color:"#2fae6b",t:1.4,d:1.4};tone(300,.3,"sine",.12,700)}
+function runTarget(){if(runPhase!=="run")return null;
+  for(var i=0;i<runSigns.length;i++){var g=runSigns[i];if(g.st===0&&g.x>camX-4*u&&W*runAnchor+(g.x-camX)<W-14*u)return g}return null}
 function updateRun(dt){
   if(jumpT<.45){jumpT+=dt;return}
-  var sp=runSpeed(),i,k,n;camX+=sp*dt;feverUsed+=dt;
-  while(nextMangoX<camX+W){for(k=0;k<3;k++)runMangos.push({x:nextMangoX+k*22*u,got:false});nextMangoX+=sp*2}
-  while(nextSignX<camX+W){do{n=1+Math.floor(Math.random()*12)}while(n===lastSignN);lastSignN=n;runSigns.push({x:nextSignX,n:n,st:0});nextSignX+=sp*.85}
-  for(i=0;i<runMangos.length;i++){var m=runMangos[i];if(!m.got&&m.x<=camX+8*u){m.got=true;mango++;goalEv("mango",1,true);hud();
+  var sp=runSpeed(),i,k,n;
+  if(runPhase==="climb"){climbT+=dt;var e=Math.min(1,climbT/1.1);runAnchor=.3+.2*e*e*(3-2*e);if(climbT>=1.35)endRun();return}
+  camX+=sp*dt;if(runPhase==="run")feverUsed+=dt;
+  if(runPhase==="toTree"&&camX>=treeX){camX=treeX;runPhase="climb";climbT=0;tone(500,.4,"sine",.1,900)}
+  if(runPhase==="run"){
+    while(nextMangoX<camX+W){for(k=0;k<3;k++)runMangos.push({x:nextMangoX+k*22*u,got:false});nextMangoX+=sp*2}
+    while(nextSignX<camX+W){do{n=1+Math.floor(Math.random()*12)}while(n===lastSignN);lastSignN=n;runSigns.push({x:nextSignX,n:n,st:0});nextSignX+=sp*.85}
+  }
+  for(i=0;i<runMangos.length;i++){var m=runMangos[i];if(!m.got&&m.x<=camX+8*u){m.got=true;mango++;runMangoCount++;goalEv("mango",1,true);goalEv("rauschMangos",runMangoCount);hud();
     if(ac)marimba(84+(i%3)*4,ac.currentTime,.1,ac.destination)}}
   for(i=0;i<runSigns.length;i++)if(runSigns[i].st===0&&runSigns[i].x<camX-4*u)runSigns[i].st=2;
   runMangos=runMangos.filter(function(m){return m.x>camX-W});runSigns=runSigns.filter(function(g){return g.x>camX-W});
@@ -822,20 +867,22 @@ function updateRun(dt){
 }
 function feverPress(n,b){
   var g=runTarget();if(!g)return;
-  if(n===g.n){g.st=1;flash(b,"hit");var room=FEVER_CAP-feverUsed-fever;if(room>0){fever+=Math.min(1,room);floatUp("+1 s","#f0a52a")}
+  if(n===g.n){g.st=1;flash(b,"hit");goalEv("signs",1,true);var room=FEVER_CAP-feverUsed-fever;if(room>0){fever+=Math.min(1,room);floatUp("+1 s","#f0a52a")}
     if(ac)marimba(79,ac.currentTime,.18,ac.destination);vib(10)}
   else{flash(b,"miss");tone(180,.15,"triangle",.1,120)}
 }
 function drawRunWorld(){
   var gy=H*.86,i,x;
+  if(runPhase!=="run"){var tx=W*runAnchor+(treeX-camX);if(tx>-60&&tx<W+60){ctx.fillStyle="#6b4a2f";sh(1,0);ctx.fillRect(tx-15*u,0,30*u,gy);sh(0);
+    ctx.fillStyle="#57391f";ctx.fillRect(tx+6*u,0,9*u,gy);ctx.fillStyle="#2f8f5f";ctx.beginPath();ctx.ellipse(tx,0,70*u,20*u,0,0,7);ctx.fill()}}
   ctx.fillStyle="#c49a62";ctx.fillRect(0,gy,W,H-gy);ctx.fillStyle="#a37a48";ctx.fillRect(0,gy,W,4*u);
   ctx.fillStyle="rgba(120,85,45,.35)";for(i=0;i<12;i++){x=((i*61-camX)%(W+40)+W+40)%(W+40)-20;ctx.fillRect(x,gy+10*u+(i%3)*8*u,14*u,3*u)}
-  for(i=0;i<runMangos.length;i++){var m=runMangos[i];if(m.got)continue;x=W*.3+(m.x-camX);if(x<-20||x>W+20)continue;
+  for(i=0;i<runMangos.length;i++){var m=runMangos[i];if(m.got)continue;x=W*runAnchor+(m.x-camX);if(x<-20||x>W+20)continue;
     ctx.fillStyle="#ff8a1f";ctx.beginPath();ctx.ellipse(x,gy-8*u,7*u,9*u,.4,0,7);ctx.fill();
     ctx.fillStyle="#ffd24a";ctx.beginPath();ctx.ellipse(x-2*u,gy-10*u,2.5*u,4*u,.4,0,7);ctx.fill();
     ctx.fillStyle="#2f8f5f";ctx.beginPath();ctx.ellipse(x+4*u,gy-17*u,4.5*u,2.2*u,-.5,0,7);ctx.fill()}
   var tg=runTarget();
-  for(i=0;i<runSigns.length;i++){var g=runSigns[i];x=W*.3+(g.x-camX);if(x<-30||x>W+30)continue;
+  for(i=0;i<runSigns.length;i++){var g=runSigns[i];x=W*runAnchor+(g.x-camX);if(x<-30||x>W+30)continue;
     var y=gy-74*u,r=20*u;
     ctx.strokeStyle="#7a5530";ctx.lineWidth=4*u;ctx.beginPath();ctx.moveTo(x,gy);ctx.lineTo(x,y+r);ctx.stroke();
     ctx.globalAlpha=g.st===2?.4:1;
@@ -845,8 +892,9 @@ function drawRunWorld(){
     ctx.fillText(g.st===1?"✓":g.n,x,y+r*.08);ctx.globalAlpha=1}
 }
 function drawRunner(){
-  var gy=H*.86,x=W*.3,t=time*13,y=gy-34*u-Math.abs(Math.sin(t))*5*u,fur="#8a6a4a",dark="#5c4532",e;
+  var gy=H*.86,x=W*runAnchor,t=time*13,y=gy-34*u-Math.abs(Math.sin(t))*5*u,fur="#8a6a4a",dark="#5c4532",e;
   if(jumpT<.45){e=jumpT/.45;x=W/2+(W*.3-W/2)*e;var hy=nodeY(pos)+46*u;y=hy+(y-hy)*e-Math.sin(Math.PI*e)*40*u}
+  if(runPhase==="climb"){e=Math.min(1,climbT/1.1);var hy2=nodeY(exitPos)+46*u,gb=gy-34*u;y=gb+(hy2-gb)*e*e*(3-2*e);x+=Math.sin(time*20)*2*u}
   var fg2=ctx.createRadialGradient(x,y,8*u,x,y,(62+Math.sin(time*9)*6)*u);fg2.addColorStop(0,"rgba(255,214,90,.6)");fg2.addColorStop(1,"rgba(255,214,90,0)");
   ctx.fillStyle=fg2;ctx.beginPath();ctx.arc(x,y,70*u,0,7);ctx.fill();
   ctx.fillStyle=dark;var l1=Math.sin(t)*9*u;
@@ -904,12 +952,13 @@ var last=0;
 function frame(ts){
   var dt=Math.min(.05,(ts-last)/1000||0);last=ts;time+=dt;
   if(state==="play"){
-    if(!(tut&&dist<3)&&!runMode)tLeft-=dt;
+    if(graceT>0)graceT-=dt;else if(!(tut&&dist<3)&&!runMode)tLeft-=dt;
+    if(!nightDone&&todN()>.5){nightDone=true;goalEv("night",1,true)}
     if(!runMode)for(var k in fx)if(fx[k]>0)fx[k]=Math.max(0,fx[k]-dt);
     if(fx.rot>0&&!runMode)rotT+=dt;
     if(runMode)updateRun(dt);else if(feverCool>0)feverCool=Math.max(0,feverCool-dt);
     playT+=dt;
-    if(fever>0){if(!(runMode&&jumpT<.45))fever-=dt;if(fever<=0){fever=0;feverCharge=0;if(runMode)endRun()}}
+    if(fever>0){if(!(runMode&&jumpT<.45))fever-=dt;if(fever<=0){fever=0;feverCharge=0;if(runMode)beginExit()}}
     if(chase&&runMode)endChase(true);
     if(chase){chase.t+=dt;chase.gap-=dt*.05;if(chase.gap<=0){chase.gap=0;over("Die Harpyie hat Slozzy erwischt.",0,true,"harpy")}else if(chase.t>20)endChase(false)}
     if(!weather&&playT>nextWeather)weather={type:Math.random()<.4?"storm":"rain",t:16};

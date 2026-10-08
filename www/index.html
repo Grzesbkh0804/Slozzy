@@ -329,7 +329,7 @@ function press(n,b){
   else if(feverCool<=0){var hardFx=fx.mh>0||fx.mv>0||fx.rot>0||fx.blank>0,chargeFast=used<Math.max((hardFx?.7:.45)*tMax,hardFx?.8:.5);
     if(chargeFast)feverCharge=Math.min(1,feverCharge+.1);
     if(!SAVE.seenHelp.feverHint&&feverCharge>=.3){SAVE.seenHelp.feverHint=1;persist();banner={text:"Schnell tippen lädt das Fieber!",color:"#f0a52a",t:2.4,d:2.4}}
-    if(feverCharge>=1){feverCharge=0;fever=FEVER_MAX;goalEv("fever",1,true);if(chase){chase=null;harpyOut=null}banner={text:"Mango-Rausch!",color:"#f0a52a",t:2.2,d:2.2};jingle();startRun()}}
+    if(feverCharge>=1){feverCharge=0;fever=FEVER_MAX;goalEv("fever",1,true);if(chase){endChase(true);mango+=5;goalEv("escape",1,true);floatUp("Harpyie verscheucht! +5","#2fae6b")}banner={text:"Mango-Rausch!",color:"#f0a52a",t:2.2,d:2.2};jingle();startRun()}}
   if(left<.15)floatUp("Puh!","#2fae6b");
   score+=mult*(fever>0?2:1);goalEv("dist",dist);goalEv("score",score);goalEv("mult",mult);
   tone(392*Math.pow(2,((mult-1)*3+fastRun%3)/12),.12,"triangle",.14);vib(10);
@@ -350,7 +350,7 @@ function press(n,b){
   }
   if(chase){chase.gap+=fast?.1:.035;
     if(chase.gap>=1){endChase(true);mango+=5;goalEv("escape",1,true);banner={text:"Abgehängt! +5 Mangos",color:"#2fae6b",t:2,d:2};jingle()}}
-  else if(dist>=nextChase&&!t.tree&&!tut){chase={gap:.5,t:0};banner={text:"Harpyie! Schnell weg!",color:"#e8503a",t:2.2,d:2.2};tone(1500,.5,"sawtooth",.07,750)}
+  else if(dist>=nextChase&&!t.tree&&!tut&&!runMode){chase={gap:.5,t:0};banner={text:"Harpyie! Schnell weg!",color:"#e8503a",t:2.2,d:2.2};tone(1500,.5,"sawtooth",.07,750)}
   hud();
   var w=Math.floor(camX/(WORLD_LEN*S)+.5)%WORLDS.length;
   if(w!==world){prevWorld=world;world=w;fade=1;$("world").textContent=WORLDS[w].name}
@@ -910,6 +910,7 @@ function frame(ts){
     if(runMode)updateRun(dt);else if(feverCool>0)feverCool=Math.max(0,feverCool-dt);
     playT+=dt;
     if(fever>0){if(!(runMode&&jumpT<.45))fever-=dt;if(fever<=0){fever=0;feverCharge=0;if(runMode)endRun()}}
+    if(chase&&runMode)endChase(true);
     if(chase){chase.t+=dt;chase.gap-=dt*.05;if(chase.gap<=0){chase.gap=0;over("Die Harpyie hat Slozzy erwischt.",0,true,"harpy")}else if(chase.t>20)endChase(false)}
     if(!weather&&playT>nextWeather)weather={type:Math.random()<.4?"storm":"rain",t:16};
     if(weather){weather.t-=dt;

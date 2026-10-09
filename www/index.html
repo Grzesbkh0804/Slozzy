@@ -469,15 +469,18 @@ function press(n,b){
   updWorld();
   tMax=tLeft=windowFor();
   if(t.gorge){startGorge();return}
-  if(state==="play"&&!runMode&&!t.tree){var nxI=getNode(pos+1);if(nxI.item&&!SAVE.seenHelp["ii_"+nxI.item]){showItemIntro(nxI.item);return}}
+  if(state==="play"){var iq=[];if(chase&&chase.t===0&&!SAVE.seenHelp.ii_harpy)iq.push("harpy");if(runMode&&!SAVE.seenHelp.ii_fever)iq.push("fever");
+    if(!runMode&&!t.tree){var nxI=getNode(pos+1);if(nxI.item&&!SAVE.seenHelp["ii_"+nxI.item])iq.push(nxI.item);if(nxI.tree&&!SAVE.seenHelp.ii_sleep)iq.push("sleep");if(nxI.gorge&&!SAVE.seenHelp.ii_gorge)iq.push("gorge")}
+    if(iq.length){introQ=iq;showItemIntro(introQ.shift());return}}
   if(t.tree&&!chase&&!runMode){evSeen("sleep");state="sleep";sleepM=0;sleepT=4;snoreT=.5;tone(520,.8,"sine",.16,170);banner={text:"Slozzy schläft ein!",color:"#6b4a2f",t:2.2,d:2.2}}
 }
 function updWorld(){var wi=worldIdx();goalEv("world",wi);var w=wi%WORLDS.length;
   if(w!==world){prevWorld=world;world=w;fade=1;$("world").textContent=WORLDS[w].name}}
+var introQ=[],INTRO_TAIL={sleep:" Gleich kommt dein erster Schlafbaum!",gorge:" An der nächsten Liane geht es los!",harpy:" Da kommt sie schon!",fever:" Jetzt ist es so weit!"};
 function showItemIntro(k){state="intro";SAVE.seenHelp["ii_"+k]=1;SAVE.seenHelp[k]=1;persist();
-  $("iiT").textContent="Neu: "+HELP[k][0];$("iiP").textContent=HELP[k][1]+(ITEMS[k].good?" Greif die Liane, dann gehört es dir!":" Du kannst nicht ausweichen, die Liane musst du nehmen.");
+  $("iiT").textContent="Neu: "+HELP[k][0];$("iiP").textContent=HELP[k][1]+(ITEMS[k]?(ITEMS[k].good?" Greif die Liane, dann gehört es dir!":" Du kannst nicht ausweichen, die Liane musst du nehmen."):(INTRO_TAIL[k]||""));
   drawHelp(k,$("iiCv"));$("iintro").hidden=false;tone(660,.25,"sine",.1,880)}
-$("iiOk").addEventListener("click",function(){if(state!=="intro")return;$("iintro").hidden=true;state="play";tMax=tLeft=windowFor();graceT=.25});
+$("iiOk").addEventListener("click",function(){if(state!=="intro")return;if(introQ.length){showItemIntro(introQ.shift());return}$("iintro").hidden=true;state="play";if(!runMode){tMax=tLeft=windowFor();graceT=.25}});
 function wakeTap(e){
   if(e)e.preventDefault();if(state!=="sleep")return;
   sleepM+=.13;shake=1;vib(15);if(ac)marimba(60+Math.round(sleepM*12),ac.currentTime,.18,ac.destination);
@@ -542,7 +545,7 @@ var SAVE={level:1,hat:"none",armed:{},goals:null,up:{slow:0,shield:0,second:0},r
 try{var raw=JSON.parse(localStorage.getItem("slozzy-save"));if(raw&&typeof raw==="object")for(var rk in raw)SAVE[rk]=raw[rk]}catch(e){}
 if(!SAVE.level)SAVE.level=1;
 if(!SAVE.seenEv)SAVE.seenEv={};
-if(!SAVE.stage){if((SAVE.lianen||0)>100){SAVE.stage=STAGES.length;STAGES.forEach(function(st){st.forEach(function(k){SAVE.seenEv[k]=1})});if(!SAVE.seenHelp)SAVE.seenHelp={};for(var ik in IW)SAVE.seenHelp["ii_"+ik]=1}else SAVE.stage=1}if(!SAVE.seenHelp)SAVE.seenHelp={};if(!SAVE.up)SAVE.up={slow:0,shield:0,second:0};if(!SAVE.armed)SAVE.armed={};if(!SAVE.rescued)SAVE.rescued=0;
+if(!SAVE.stage){if((SAVE.lianen||0)>100){SAVE.stage=STAGES.length;STAGES.forEach(function(st){st.forEach(function(k){SAVE.seenEv[k]=1})});if(!SAVE.seenHelp)SAVE.seenHelp={};for(var ik in IW)SAVE.seenHelp["ii_"+ik]=1;["sleep","gorge","harpy","fever"].forEach(function(q){SAVE.seenHelp["ii_"+q]=1})}else SAVE.stage=1}if(!SAVE.seenHelp)SAVE.seenHelp={};if(!SAVE.up)SAVE.up={slow:0,shield:0,second:0};if(!SAVE.armed)SAVE.armed={};if(!SAVE.rescued)SAVE.rescued=0;
 function persist(){try{localStorage.setItem("slozzy-save",JSON.stringify(SAVE));localStorage.setItem("slozzy-mango",String(mango))}catch(e){}}
 var HATS=[["none","Ohne Outfit",1],["straw","Strohhut",2],["shades","Sonnenbrille",4],["flower","Blumenkette",6],["snorkel","Taucherbrille",9],["crown","Krone",12]];
 HATS.forEach(function(h){if(h[0]===SAVE.hat&&h[2]>SAVE.level)SAVE.hat="none"});

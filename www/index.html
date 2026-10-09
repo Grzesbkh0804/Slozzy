@@ -99,12 +99,19 @@ body{background:var(--leaf-deep);color:var(--cream);font-family:var(--display);o
 .intro p{margin:0;font-size:14px;line-height:1.35;font-weight:500}
 .intro button{align-self:flex-start;background:var(--ink)!important;color:var(--cream)!important}
 .hrow{align-items:flex-start}
+.hrow.locked{opacity:.5}
+.hrow.locked canvas{filter:grayscale(1) blur(1.5px)}
 .hrow canvas{width:96px;height:60px;border-radius:10px;flex:none}
 .hrow b{display:block;font-size:15px}
 .hrow small{font-size:13px;line-height:1.3}
 .reset{position:absolute;top:10px;left:12px;font:600 12px var(--display);color:var(--cream);opacity:.75;background:none;border:0;text-decoration:underline;cursor:pointer;padding:4px}
 .menu{display:flex;gap:8px;margin-top:6px;flex-wrap:wrap;justify-content:center}
 .game{position:relative}
+.iintro{position:absolute;inset:0;z-index:15;background:rgba(18,58,44,.92);display:flex;align-items:center;justify-content:center;padding:16px;text-align:center;color:var(--cream)}
+.iintro canvas{width:220px;height:138px;border-radius:16px;display:block}
+.iintro .help{max-width:36ch}
+.iintro h2{margin:2px 0 0;font-size:24px;font-weight:800;color:var(--sun)}
+.iintro p{font-size:15px;line-height:1.35;margin:4px 0 6px}
 .story{position:absolute;inset:0;z-index:20;background:var(--leaf-deep);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:16px;text-align:center}
 .story canvas{width:100%;max-width:440px;aspect-ratio:4/3;height:auto;border-radius:18px;box-shadow:0 8px 20px rgba(0,0,0,.35)}
 .story p{margin:0;max-width:32ch;font-size:18px;line-height:1.35;color:var(--cream);font-weight:600;min-height:4.1em;text-wrap:balance}
@@ -177,6 +184,7 @@ body{background:var(--leaf-deep);color:var(--cream);font-family:var(--display);o
       <div class="menu"><button id="bShop" type="button">Shop</button><button id="bGoals" type="button">Tagesziele</button><button id="bHelp" type="button">Hilfe</button><button id="bStory" type="button">Geschichte</button></div>
     </div>
   </div>
+  <div class="iintro" id="iintro" hidden><div class="help"><canvas id="iiCv" width="480" height="300"></canvas><h2 id="iiT"></h2><p id="iiP"></p><button class="go" id="iiOk" type="button">Weiter</button></div></div>
   <div class="story" id="story" hidden>
     <canvas id="storyCv" width="800" height="600" aria-label="Bild zur Geschichte"></canvas>
     <p id="storyText"></p>
@@ -199,13 +207,23 @@ var WORLDS=[
  {name:"Strand",top:"#6fc3ee",bot:"#ffe7b8",sun:"#fff2a8",far:"#7fcfd0",mid:"#f0cf8e",near:"#dba85f",fg:"#7a4f2a",saw:0}
 ];
 var WORLD_LEN=20;
+var STAGES=[["mango","baby"],["slow"],["shield"],["mh","sleep"],["gorge"],["fever"],["harpy"],["mv","weather"],["fog"],["rot"],["blank"]];
+var EVN={mango:"Mangos",baby:"Faultier-Babys",slow:"Zeitlupe",shield:"Schild",mh:"Spiegel ↔",sleep:"Schlafbaum",gorge:"Schlucht",fever:"Mango-Pause",harpy:"Harpyie",mv:"Spiegel ↕",weather:"Gewitter",fog:"Nebel",rot:"Drehung",blank:"Lücken"};
+var GORGE_ON=false,FEVER_ON=false;
+function unl(k){for(var i=0;i<STAGES.length;i++)if(STAGES[i].indexOf(k)>=0)return i<(SAVE.stage||1);return true}
+function evSeen(k){if(!SAVE.seenEv[k]){SAVE.seenEv[k]=1;persist()}}
+var IW={slow:.25,shield:.08,mh:.14,mv:.14,fog:.12,rot:.15,blank:.12};
+function pickItem(i){var av=[],tot=0,k,q;for(k in IW)if(unl(k)&&!(k==="rot"&&i<30)){av.push(k);tot+=IW[k]}
+  if(!av.length)return null;
+  for(q=0;q<av.length;q++)if(!SAVE.seenEv[av[q]])return av[q];
+  var r=Math.random()*tot;for(q=0;q<av.length;q++){r-=IW[av[q]];if(r<=0)return av[q]}return av[av.length-1]}
 var GAP_F=1.5;
-function gapsBefore(i){return i>0?Math.floor((i-1)/WORLD_LEN):0}
+function gapsBefore(i){return GORGE_ON&&i>0?Math.floor((i-1)/WORLD_LEN):0}
 function wx(i){return i*S+gapsBefore(i)*GAP_F*S}
-function isGorge(i){return i>0&&i%WORLD_LEN===0}
-function nearGorge(n){var r=pos%WORLD_LEN;return (pos>0&&r===0)||WORLD_LEN-r<=n}
-function worldIdx(){return Math.floor(Math.max(0,pos-1)/WORLD_LEN)}
-function bgV(cx){var L=WORLD_LEN*S+GAP_F*S;return (cx-.5*S+.5*GAP_F*S)/L}                    // Punkte pro Welt
+function isGorge(i){return GORGE_ON&&i>0&&i%WORLD_LEN===0}
+function nearGorge(n){if(!GORGE_ON)return false;var r=pos%WORLD_LEN;return (pos>0&&r===0)||WORLD_LEN-r<=n}
+function worldIdx(){return !GORGE_ON?0:Math.floor(Math.max(0,pos-1)/WORLD_LEN)}
+function bgV(cx){if(!GORGE_ON)return 0;var L=WORLD_LEN*S+GAP_F*S;return (cx-.5*S+.5*GAP_F*S)/L}                    // Punkte pro Welt
 var ITEMS={
  slow:{sym:"½",label:"Zeitlupe",dur:10,good:true,color:"#3fbf8f"},
  mh:{sym:"↔",label:"Spiegel ↔",dur:15,good:false,color:"#e8503a"},
@@ -272,14 +290,12 @@ function getNode(i){
     var n;do{n=1+Math.floor(Math.random()*12)}while(n===lastN);lastN=n;
     var item=null;
     if(i>=nextItem){
-      var r=Math.random();
-      item=r<.25?"slow":r<.33?"shield":r<.47?"mh":r<.61?"mv":r<.73?"fog":r<.88?"rot":"blank";
-      if(i<30&&item==="rot")item="slow";
+      item=pickItem(i);
       nextItem=i+6+Math.floor(Math.random()*4);
     }
-    var tree=false;if(i>=nextTree){tree=true;item=null;nextTree=i+14+Math.floor(Math.random()*16)}
+    var tree=false;if(i>=nextTree&&unl("sleep")){tree=true;item=null;nextTree=i+14+Math.floor(Math.random()*16)}
     var gorge=isGorge(i),land=isGorge(i-1);if(gorge||land){tree=false;item=null}
-    var baby=!gorge&&!land&&!tree&&!item&&i>=8&&Math.random()<.08;
+    var baby=!gorge&&!land&&!tree&&!item&&((i>=8&&Math.random()<.08)||(i===5&&!SAVE.seenEv.baby));
     nodes[i]={n:n,item:item,tree:tree,baby:baby,gorge:gorge,mango:!gorge&&!land&&!baby&&!tree&&!item&&i>=3&&Math.random()<.3,y:gorge?24:(Math.random()*2-1)*12};
   }
   return nodes[i];
@@ -287,6 +303,10 @@ function getNode(i){
 function windowFor(){var b=dist<15?3.2-dist*.02:Math.max(.7,2.9*Math.pow(.972,dist-15));return fx.slow>0?b*1.7:b}
 
 function start(){
+  SAVE.runs=(SAVE.runs||0)+1;var newS=null;
+  if(SAVE.runs>1&&SAVE.stage<STAGES.length&&STAGES[SAVE.stage-1].some(function(k){return SAVE.seenEv[k]})){SAVE.stage++;newS=STAGES[SAVE.stage-1]}
+  GORGE_ON=unl("gorge");FEVER_ON=unl("fever");
+  if(newS)setTimeout(function(){if(state==="play")banner={text:"Neu: "+newS.map(function(k){return EVN[k]}).join(" & "),color:"#b05ad6",t:2.6,d:2.6}},900);
   nodes={0:{n:0,item:null,y:0}};pos=0;score=0;camX=0;theta=0;vel=0;handY=0;swingFrom=0;swingP=1;lastN=0;nextItem=6;
   fx={slow:0,mh:0,mv:0,rot:0,fog:0,rom:0,blank:0};rotT=0;world=prevWorld=0;fade=0;fallY=0;spin=0;banner=null;
   for(var bi=1;bi<=12;bi++)btns[bi].classList.remove("ok","bad");
@@ -333,6 +353,7 @@ var HELP={
   fever:["Mango-Pause","Schnelle Treffer laden den Ring um die Uhr. Ist er voll, muss Slozzy dringend vom Baum, so wie echte Faultiere etwa einmal pro Woche. Auf dem Weg zum Busch sammelt er Mangos vom Boden ein. Während er dahinter sitzt, wächst ein Mangobaum: Tippe die Zahlen auf den Mangos, um sie zu pflücken und die Pause zu verlängern (8 bis 20 Sekunden)."],
   slow:["Zeitlupe","10 Sekunden lang hast du deutlich mehr Zeit pro Zahl. Unter „Items“ kannst du sie verlängern."],
   shield:["Schild","Verzeiht einen Fehler oder einen Biss der Harpyie. Solange es aktiv ist, trägt Slozzy eine blaue Blase."],
+  baby:["Faultier-Babys","Manchmal hängt ein Faultier-Baby an einer Liane. Greifst du sie, rettest du es: +5 Punkte. Gerettete Babys zählen für manche Level-Ziele."],
   mango:["Mangos","Mangos hängen an manchen Lianen und wachsen in der Mango-Pause am Mangobaum. Unter „Items“ tauschst du sie gegen Verbesserungen und Start-Vorteile."],
   level:["Level","Du hast immer drei Ziele. Schaffst du alle, steigst du ein Level auf, bekommst Mangos und schaltest neue Outfits frei."],
   harpy:["Die Harpyie","Der Balken unten zeigt deinen Vorsprung. Jeder schnelle Treffer bringt dich weiter weg, langsame lassen sie aufholen. Halte das Tempo hoch, bis der Balken voll ist. Nach 20 Sekunden gibt sie von selbst auf."],
@@ -365,6 +386,9 @@ function drawHelp(t,cv){
     c.fillStyle="#9b7653";c.beginPath();c.arc(400+Math.sin(ha)*52,96+Math.cos(ha)*52,10,0,7);c.fill();
     c.fillStyle="#fff5d9";c.font="800 18px 'Baloo 2',sans-serif";[[4,120],[5,150],[8,240]].forEach(function(q){var aa=q[1]*Math.PI/180;c.fillText(q[0],400+Math.sin(aa)*84,96-Math.cos(aa)*84+2)});
     return}
+  if(t==="baby"){var oc=ctx,ou=u;ctx=c;u=5;try{c.strokeStyle="#2c6b3f";c.lineWidth=6;c.beginPath();c.moveTo(240,0);c.lineTo(240,80);c.stroke();
+      slothArm(214,150,232,80,7);slothArm(266,150,248,80,7);slothHead(240,160,"happy");
+      c.fillStyle="#ff6fae";c.beginPath();c.arc(330,80,10,0,7);c.arc(150,90,8,0,7);c.fill()}finally{ctx=oc;u=ou}return}
   if(t==="harpy"){c.fillStyle="#4f9f7c";c.beginPath();c.ellipse(240,330,320,90,0,0,7);c.fill();harpyShape(c,250,140,4,.45);return}
   if(t==="sleep"){c.fillStyle="#6b4a2f";c.fillRect(200,0,80,h);
     c.strokeStyle="#8a6a4a";c.lineWidth=26;c.lineCap="round";c.beginPath();c.moveTo(212,140);c.lineTo(222,30);c.moveTo(268,140);c.lineTo(258,30);c.stroke();
@@ -415,7 +439,7 @@ function press(n,b){
     if(fastRun%5===0){flipT0=time;goalEv("salto",1,true);floatUp("Salto!","#b05ad6");tone(320,.3,"sine",.1,900)}}
   else{fastRun=0;mult=1}
   if(fever>0){if(fast)fever=Math.min(FEVER_MAX,fever+1.6)}
-  else if(feverCool<=0){var hardFx=fx.mh>0||fx.mv>0||fx.rot>0||fx.blank>0,chargeFast=used<Math.max((hardFx?.7:.45)*tMax,hardFx?.8:.5);
+  else if(feverCool<=0&&FEVER_ON){var hardFx=fx.mh>0||fx.mv>0||fx.rot>0||fx.blank>0,chargeFast=used<Math.max((hardFx?.7:.45)*tMax,hardFx?.8:.5);
     if(chargeFast)feverCharge=Math.min(1,feverCharge+.1);
     if(!SAVE.seenHelp.feverHint&&feverCharge>=.3){SAVE.seenHelp.feverHint=1;persist();banner={text:"Schnell tippen lädt das Fieber!",color:"#f0a52a",t:2.4,d:2.4}}
     if(feverCharge>=1&&!nearGorge(DASH_N+1)){feverCharge=0;fever=FEVER_MAX;goalEv("fever",1,true);if(chase){endChase(true);mango+=5;goalEv("escape",1,true);floatUp("Harpyie verscheucht! +5","#2fae6b")}banner={text:"Dringend! Mango-Pause!",color:"#f0a52a",t:2.2,d:2.2};jingle();startRun()}}
@@ -425,10 +449,10 @@ function press(n,b){
   if(tut&&dist===3){tut=false;try{localStorage.setItem("slozzy-tut","1")}catch(e){}banner={text:"Ab jetzt läuft die Zeit!",color:"#2fae6b",t:2.2,d:2.2}}
   if(mult>bestMult)bestMult=mult;
   if(dist%10===0)banner={text:CHEERS[Math.min(CHEERS.length-1,dist/10-1)],color:"#f0a52a",t:1.6};
-  if(t.mango){mango++;try{localStorage.setItem("slozzy-mango",String(mango))}catch(e){}floatUp("+1 Mango","#ff8a1f");goalEv("mango",1,true);if(ac)marimba(88,ac.currentTime+.05,.14,ac.destination)}
-  if(t.baby){SAVE.rescued++;score+=5;floatUp("Baby gerettet! +5","#b05ad6");goalEv("rescue",1,true);if(ac)marimba(84,ac.currentTime,.18,ac.destination)}
+  if(t.mango){evSeen("mango");mango++;try{localStorage.setItem("slozzy-mango",String(mango))}catch(e){}floatUp("+1 Mango","#ff8a1f");goalEv("mango",1,true);if(ac)marimba(88,ac.currentTime+.05,.14,ac.destination)}
+  if(t.baby){evSeen("baby");SAVE.rescued++;score+=5;floatUp("Baby gerettet! +5","#b05ad6");goalEv("rescue",1,true);if(ac)marimba(84,ac.currentTime,.18,ac.destination)}
   if(t.item){
-    var it=ITEMS[t.item];goalEv("items",1,true);
+    var it=ITEMS[t.item];evSeen(t.item);goalEv("items",1,true);
     if(t.item==="shield")shield=1+(SAVE.up.shield||0);
     else if(t.item==="rot"){if(fx.rot<=0)rotT=0;fx.rot+=30}
     else fx[t.item]=it.dur+(t.item==="slow"?(SAVE.up.slow||0)*3:0);
@@ -440,15 +464,20 @@ function press(n,b){
   }
   if(chase){chase.gap+=fast?.1:.035;
     if(chase.gap>=1){endChase(true);mango+=5;goalEv("escape",1,true);banner={text:"Abgehängt! +5 Mangos",color:"#2fae6b",t:2,d:2};jingle()}}
-  else if(dist>=nextChase&&!t.tree&&!t.gorge&&!nearGorge(8)&&!tut&&!runMode){chase={gap:.5,t:0};banner={text:"Harpyie! Schnell weg!",color:"#e8503a",t:2.2,d:2.2};tone(1500,.5,"sawtooth",.07,750)}
+  else if(dist>=nextChase&&unl("harpy")&&!t.tree&&!t.gorge&&!nearGorge(8)&&!tut&&!runMode){chase={gap:.5,t:0};evSeen("harpy");banner={text:"Harpyie! Schnell weg!",color:"#e8503a",t:2.2,d:2.2};tone(1500,.5,"sawtooth",.07,750)}
   hud();
   updWorld();
   tMax=tLeft=windowFor();
   if(t.gorge){startGorge();return}
-  if(t.tree&&!chase&&!runMode){state="sleep";sleepM=0;sleepT=4;snoreT=.5;tone(520,.8,"sine",.16,170);banner={text:"Slozzy schläft ein!",color:"#6b4a2f",t:2.2,d:2.2}}
+  if(state==="play"&&!runMode&&!t.tree){var nxI=getNode(pos+1);if(nxI.item&&!SAVE.seenHelp["ii_"+nxI.item]){showItemIntro(nxI.item);return}}
+  if(t.tree&&!chase&&!runMode){evSeen("sleep");state="sleep";sleepM=0;sleepT=4;snoreT=.5;tone(520,.8,"sine",.16,170);banner={text:"Slozzy schläft ein!",color:"#6b4a2f",t:2.2,d:2.2}}
 }
 function updWorld(){var wi=worldIdx();goalEv("world",wi);var w=wi%WORLDS.length;
   if(w!==world){prevWorld=world;world=w;fade=1;$("world").textContent=WORLDS[w].name}}
+function showItemIntro(k){state="intro";SAVE.seenHelp["ii_"+k]=1;SAVE.seenHelp[k]=1;persist();
+  $("iiT").textContent="Neu: "+HELP[k][0];$("iiP").textContent=HELP[k][1]+(ITEMS[k].good?" Greif die Liane, dann gehört es dir!":" Du kannst nicht ausweichen, die Liane musst du nehmen.");
+  drawHelp(k,$("iiCv"));$("iintro").hidden=false;tone(660,.25,"sine",.1,880)}
+$("iiOk").addEventListener("click",function(){if(state!=="intro")return;$("iintro").hidden=true;state="play";tMax=tLeft=windowFor();graceT=.25});
 function wakeTap(e){
   if(e)e.preventDefault();if(state!=="sleep")return;
   sleepM+=.13;shake=1;vib(15);if(ac)marimba(60+Math.round(sleepM*12),ac.currentTime,.18,ac.destination);
@@ -511,7 +540,9 @@ document.addEventListener("visibilitychange",function(){if(!ac)return;try{if(doc
 /* ---------- Level, Ziele, Werkstatt ---------- */
 var SAVE={level:1,hat:"none",armed:{},goals:null,up:{slow:0,shield:0,second:0},rescued:0},preview=false,panelKind="";
 try{var raw=JSON.parse(localStorage.getItem("slozzy-save"));if(raw&&typeof raw==="object")for(var rk in raw)SAVE[rk]=raw[rk]}catch(e){}
-if(!SAVE.level)SAVE.level=1;if(!SAVE.seenHelp)SAVE.seenHelp={};if(!SAVE.up)SAVE.up={slow:0,shield:0,second:0};if(!SAVE.armed)SAVE.armed={};if(!SAVE.rescued)SAVE.rescued=0;
+if(!SAVE.level)SAVE.level=1;
+if(!SAVE.seenEv)SAVE.seenEv={};
+if(!SAVE.stage){if((SAVE.lianen||0)>100){SAVE.stage=STAGES.length;STAGES.forEach(function(st){st.forEach(function(k){SAVE.seenEv[k]=1})});if(!SAVE.seenHelp)SAVE.seenHelp={};for(var ik in IW)SAVE.seenHelp["ii_"+ik]=1}else SAVE.stage=1}if(!SAVE.seenHelp)SAVE.seenHelp={};if(!SAVE.up)SAVE.up={slow:0,shield:0,second:0};if(!SAVE.armed)SAVE.armed={};if(!SAVE.rescued)SAVE.rescued=0;
 function persist(){try{localStorage.setItem("slozzy-save",JSON.stringify(SAVE));localStorage.setItem("slozzy-mango",String(mango))}catch(e){}}
 var HATS=[["none","Ohne Outfit",1],["straw","Strohhut",2],["shades","Sonnenbrille",4],["flower","Blumenkette",6],["snorkel","Taucherbrille",9],["crown","Krone",12]];
 HATS.forEach(function(h){if(h[0]===SAVE.hat&&h[2]>SAVE.level)SAVE.hat="none"});
@@ -525,9 +556,11 @@ function goalFor(type,L){
     night:1+Math.floor(L/6),world:L<8?2:3,mirrorHits:5+L*2,rotHits:5+L*2,fastWake:1+Math.floor(L/5),rauschMangos:4+Math.floor(L/2),gorge:1+Math.floor(L/5)}[type];
   return {type:type,target:t,prog:0,done:false};
 }
+var GOAL_NEED={items:["slow"],wake:["sleep"],fastWake:["sleep"],escape:["harpy"],shieldHarpy:["harpy","shield"],fever:["fever"],signs:["fever"],rauschMangos:["fever"],world:["gorge"],gorge:["gorge"],mirrorHits:["mh"],rotHits:["rot"],rescue:["baby"]};
+function goalOk(t){return (GOAL_NEED[t]||[]).every(unl)}
 function ensureGoals(){
   if(SAVE.goals&&SAVE.goals.level===SAVE.level&&SAVE.goals.list)return;
-  var L=SAVE.level,pool=L<=3?GT_EASY:GT_ALL,seed=(L*7919)%233280,list=[],used={},tries=0;
+  var L=SAVE.level,pool=(L<=3?GT_EASY:GT_ALL).filter(goalOk),seed=(L*7919)%233280,list=[],used={},tries=0;
   while(list.length<3&&tries<200){seed=(seed*9301+49297)%233280;var ty=pool[Math.floor(seed/233280*pool.length)];tries++;
     if(!used[ty]){used[ty]=1;list.push(goalFor(ty,L))}}
   SAVE.goals={level:L,list:list};persist();
@@ -559,12 +592,14 @@ function goalEv(type,val,add){
 }
 function menuLabel(){ensureGoals();$("bShop").textContent="Items";
   $("bGoals").textContent="Level "+SAVE.level+" · "+SAVE.goals.list.filter(function(g){return g.done}).length+"/3"}
-var HELP_ORDER=["basic","ring","fever","harpy","sleep","gorge","slow","shield","mh","mv","rot","fog","blank","mango","level"];
+var HELP_ORDER=["basic","mango","baby","slow","ring","shield","mh","sleep","gorge","fever","harpy","mv","fog","rot","blank","level"];
+function helpSeen(k){if(k==="basic"||k==="level")return true;if(k==="ring")return ["slow","mh","mv","fog","rot","blank"].some(function(q){return SAVE.seenEv[q]});return !!SAVE.seenEv[k]}
 function renderPanel(){
   var h="",i;$("pMango").textContent=mango+" Mangos";
   if(panelKind==="help"){
     $("pTitle").textContent="Hilfe";
-    HELP_ORDER.forEach(function(k){h+='<div class="row hrow"><canvas width="240" height="150" data-help="'+k+'"></canvas><div><b>'+HELP[k][0]+"</b><small>"+HELP[k][1]+"</small></div></div>"});
+    var nSeen=HELP_ORDER.filter(helpSeen).length;h+='<p class="sub">Entdeckt: '+nSeen+" von "+HELP_ORDER.length+'</p>';
+    HELP_ORDER.forEach(function(k){var sn=helpSeen(k);h+='<div class="row hrow'+(sn?"":" locked")+'"><canvas width="240" height="150" data-help="'+k+'"></canvas><div><b>'+HELP[k][0]+"</b><small>"+(sn?HELP[k][1]:"Noch nicht entdeckt. Spiel weiter, dann taucht es auf!")+"</small></div></div>"});
     $("pList").innerHTML=h;$("pList").scrollTop=0;
     Array.prototype.forEach.call($("pList").querySelectorAll("canvas[data-help]"),function(c){drawHelp(c.getAttribute("data-help"),c)});
     return;
@@ -592,7 +627,7 @@ function renderPanel(){
   }
   $("pList").innerHTML=h;
 }
-function openPanel(kind){if(state==="play"||state==="sleep"||state==="fall"||state==="gorge")return;panelKind=kind;preview=true;$("overlay").hidden=true;$("panel").hidden=false;renderPanel()}
+function openPanel(kind){if(state==="play"||state==="sleep"||state==="fall"||state==="gorge"||state==="intro")return;panelKind=kind;preview=true;$("overlay").hidden=true;$("panel").hidden=false;renderPanel()}
 function closePanel(){preview=false;$("panel").hidden=true;if(state!=="play")$("overlay").hidden=false;menuLabel()}
 $("bShop").addEventListener("click",function(){openPanel("shop")});
 $("bGoals").addEventListener("click",function(){openPanel("goals")});
@@ -1014,7 +1049,7 @@ function drawBanner(){
 /* ---------- Lianen-Sprung über die Schlucht ---------- */
 var gz={ph:"",phi:0,amp:0,t:0,started:false,holding:false,holdT:0,rx:0,ry:0,ft:0,fvx:0,fvy:0,g:0,a:0,saved:"",perfect:false,splash:0},
   G_AMAX=Math.PI/3,G_OMEGA=Math.PI*2/1.5,G_TIME=12,G_LO=Math.PI/6,G_HI=Math.PI/3+.02,G_P0=39*Math.PI/180,G_P1=51*Math.PI/180;
-function startGorge(){state="gorge";gz.g=pos;gz.ph="swing";gz.phi=0;gz.amp=.1;gz.a=0;gz.t=G_TIME;gz.started=false;gz.holding=false;gz.ft=0;gz.splash=0;gz.saved="";
+function startGorge(){evSeen("gorge");state="gorge";gz.g=pos;gz.ph="swing";gz.phi=0;gz.amp=.1;gz.a=0;gz.t=G_TIME;gz.started=false;gz.holding=false;gz.ft=0;gz.splash=0;gz.saved="";
   if(chase){endChase(true);floatUp("Die Harpyie dreht ab","#5b6b7a")}
   banner={text:"Schlucht! Schwung holen!",color:"#c2703a",t:2.4,d:2.4};tone(300,.4,"sine",.12,500);vib(30);
   if(!SAVE.seenHelp.gorgeHint)setTimeout(function(){if(state==="gorge"&&!gz.started)banner={text:"Halte die Uhr gedrückt",color:"#c2703a",t:3,d:3}},2400)}
@@ -1101,7 +1136,7 @@ function runSpeed(){return 230*u}
 var runBest=0,recordBroken=false,runPhase="run",runAnchor=.3,exitPos=0,treeX=0,climbT=0,graceT=0,runMangoCount=0,nightDone=false;
 var pauseT=0,downT=0,outT=0,pMangos=[],nextMangoT=0,lastSignN=0,dashT=0,dashFrom=0,dashTo=0,gMangos=[],DASH_N=4,DASH_D=1.7;
 var MSLOT=[[-.12,-.30],[.1,-.34],[-.02,-.22],[-.16,-.16],[.14,-.2],[.02,-.38]];
-function startRun(){runMode=true;runPhase="down";downT=0;pauseT=0;outT=0;climbT=0;jumpT=1;feverUsed=0;pMangos=[];nextMangoT=.9;runMangoCount=0;flipT0=null;
+function startRun(){evSeen("fever");runMode=true;runPhase="down";downT=0;pauseT=0;outT=0;climbT=0;jumpT=1;feverUsed=0;pMangos=[];nextMangoT=.9;runMangoCount=0;flipT0=null;
   exitPos=pos;treeX=wx(pos);runAnchor=.5;dashT=0;dashFrom=treeX;dashTo=wx(pos+DASH_N);gMangos=[];
   for(var gi=0;gi<6;gi++)gMangos.push({x:dashFrom+S*(.55+gi*.55),st:0,t2:0,bob:Math.random()*6});
   if(!SAVE.seenHelp.runHint){SAVE.seenHelp.runHint=1;persist();setTimeout(function(){if(runMode)banner={text:"Pflück die Mangos!",color:"#f0a52a",t:2.6,d:2.6}},1900)}}
@@ -1351,7 +1386,7 @@ function frame(ts){
     if(fever>0){if(!runMode||runPhase==="pause")fever-=dt;if(fever<=0){fever=0;feverCharge=0;if(runMode)beginExit()}}
     if(chase&&runMode)endChase(true);
     if(chase){chase.t+=dt;chase.gap-=dt*.05;if(chase.gap<=0){chase.gap=0;over("Die Harpyie hat Slozzy erwischt.",0,true,"harpy")}else if(chase.t>20)endChase(false)}
-    if(!weather&&playT>nextWeather)weather={type:Math.random()<.4?"storm":"rain",t:16};
+    if(!weather&&playT>nextWeather&&unl("weather")){evSeen("weather");}if(!weather&&playT>nextWeather&&unl("weather"))weather={type:Math.random()<.4?"storm":"rain",t:16};
     if(weather){weather.t-=dt;
       if(weather.type==="storm"&&Math.random()<dt*.3){flashA=1;tone(60,1.1,"sawtooth",.1,32)}
       if(weather.t<=0){weather=null;nextWeather=playT+40+Math.random()*30}}
@@ -1393,7 +1428,7 @@ function frame(ts){
       ctx.fillText("Z",W/2-(30+zp*34)*u,H*.44+(30-zp*60)*u)}ctx.globalAlpha=1}
   if(!runMode){drawFg();drawChasm();if(state==="gorge")drawGorgeSloth()}drawWeather(dt);drawChaseBar();}
   drawGrain();drawFloats(dt);drawBanner();layoutDial(dt);
-  var fr=$("fring");var cooling=fever<=0&&feverCool>0;fr.style.setProperty("--f",Math.round(Math.min(1,fever>0?fever/FEVER_MAX:cooling?1-feverCool/feverCoolMax:feverCharge)*100)+"%");if(fr.classList.contains("on")!==(fever>0))fr.classList.toggle("on",fever>0);if(fr.classList.contains("cool")!==cooling)fr.classList.toggle("cool",cooling);
+  var fr=$("fring");if(fr.hidden===FEVER_ON)fr.hidden=!FEVER_ON;var cooling=fever<=0&&feverCool>0;fr.style.setProperty("--f",Math.round(Math.min(1,fever>0?fever/FEVER_MAX:cooling?1-feverCool/feverCoolMax:feverCharge)*100)+"%");if(fr.classList.contains("on")!==(fever>0))fr.classList.toggle("on",fever>0);if(fr.classList.contains("cool")!==cooling)fr.classList.toggle("cool",cooling);
   if(!dial.dataset.bs){dial.dataset.bs=1;dial.style.boxShadow="inset 0 0 0 6px #2f8f5f,0 10px 22px rgba(0,0,0,.35)"}
   requestAnimationFrame(frame);
 }
